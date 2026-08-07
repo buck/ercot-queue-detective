@@ -1,2 +1,4 @@
 BUILD_BRIEF.md
 CONTEXT.md
+.venv/
+data/raw/
