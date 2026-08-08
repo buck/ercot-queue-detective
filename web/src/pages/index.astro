@@ -213,10 +213,23 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     .tab-panel.active { display: flex; }
 
     @media (max-width: 640px) {
-      .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
       .main { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        max-height: 42vh;   /* cap the sidebar so the map gets real estate */
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .map-panel {
+        min-height: 55vh;   /* MapLibre needs a definite container height */
+        flex: 1 1 55vh;
+      }
       .project-card { right: 0.5rem; left: 0.5rem; bottom: 0.5rem; max-width: 100%; }
       .stat-row { grid-template-columns: repeat(2, 1fr); }
+      header { flex-wrap: wrap; gap: 0.5rem; }
+      .header-stats { font-size: 0.72rem; gap: 0.75rem; margin-left: 0; }
+      nav.tabs { overflow-x: auto; }
+      nav.tabs button { white-space: nowrap; padding: 0.55rem 0.85rem; font-size: 0.78rem; }
     }
   </style>
 </head>
@@ -618,6 +631,10 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
     panels.forEach(p => p.classList.toggle('active', p.id === tabId));
     if (tabId === 'movers-tab') renderMovers();
+    if (tabId === 'map-tab' && typeof map !== 'undefined' && map) {
+      // Container size may have changed while hidden; force a recompute.
+      setTimeout(() => map.resize(), 50);
+    }
   }
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -626,6 +643,9 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       btn.classList.add('active');
       document.getElementById(btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'movers-tab') renderMovers();
+      if (btn.dataset.tab === 'map-tab' && typeof map !== 'undefined' && map) {
+        setTimeout(() => map.resize(), 50);
+      }
     });
   });
 
@@ -699,6 +719,11 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     map.on('load', () => {
       addProjectsLayer(allProjects);
     });
+
+    // Recompute size on orientation change / viewport resize / tab switch
+    // (container height can change from 0 → real after a tab activation).
+    window.addEventListener('resize', () => map.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => map.resize(), 250));
   }
 
   function buildGeoJSON(projects) {
