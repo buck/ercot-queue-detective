@@ -170,6 +170,33 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       font-size: 0.85em;
     }
     .glossary dd em { color: #fbbf24; font-style: normal; font-weight: 600; }
+
+    /* Ask tab */
+    .pill-beta { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(167,139,250,0.2); color: #c4b5fd; padding: 0.1em 0.4em; border-radius: 0.25rem; margin-left: 0.3rem; }
+    .ask-examples { margin: 1.25rem 0; }
+    .examples-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; font-weight: 600; }
+    .example-q { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.55rem 0.75rem; border-radius: 0.375rem; font-size: 0.82rem; margin-bottom: 0.4rem; cursor: pointer; transition: all 0.15s; }
+    .example-q:hover { border-color: var(--accent); color: var(--accent); }
+    #ask-form { margin: 1.25rem 0; }
+    #ask-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 0.5rem; color: var(--text); padding: 0.75rem; font-size: 0.9rem; font-family: inherit; outline: none; resize: vertical; }
+    #ask-input:focus { border-color: var(--accent); }
+    .ask-form-row { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; gap: 1rem; }
+    .ask-hint { font-size: 0.72rem; color: var(--muted); }
+    #ask-submit { padding: 0.5rem 1.25rem; background: var(--accent); color: #0a0f1e; border: none; border-radius: 0.375rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    #ask-submit:hover:not(:disabled) { background: #7dd3fc; }
+    #ask-submit:disabled { opacity: 0.5; cursor: wait; }
+    .ask-answer { min-height: 60px; padding: 1rem 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; font-size: 0.9rem; line-height: 1.65; }
+    .ask-answer:empty { display: none; }
+    .ask-answer .loading { color: var(--muted); font-style: italic; }
+    .ask-answer .error { color: var(--red); }
+    .ask-answer p { margin-bottom: 0.75rem; }
+    .ask-answer p:last-child { margin-bottom: 0; }
+    .ask-answer ul, .ask-answer ol { margin: 0 0 0.75rem 1.25rem; }
+    .ask-answer li { margin-bottom: 0.25rem; }
+    .ask-answer strong { color: var(--text); font-weight: 700; }
+    .ask-answer a { color: var(--accent); }
+    .ask-answer a:hover { text-decoration: underline; }
+    .ask-answer code { background: #1e293b; padding: 0.1em 0.4em; border-radius: 0.25rem; font-size: 0.85em; color: var(--accent); }
     .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin: 1.5rem 0; }
     .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
     .stat-box .v { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
@@ -207,6 +234,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   <nav class="tabs">
     <button class="active" data-tab="map-tab">Map</button>
     <button data-tab="movers-tab">This Month's Movers</button>
+    <button data-tab="ask-tab">Ask <span class="pill-beta">beta</span></button>
     <button data-tab="glossary-tab">Glossary</button>
     <button data-tab="about-tab">About / API</button>
   </nav>
@@ -320,6 +348,37 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
         <button data-ct="CAPACITY_CHANGED">MW Changed</button>
       </div>
       <div class="movers-grid" id="movers-grid">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ASK TAB -->
+  <div class="tab-panel" id="ask-tab">
+    <div class="about-panel">
+      <h2>Ask a question</h2>
+      <p>
+        Ask anything about the ERCOT queue in plain English. Powered by a small
+        language model reasoning over the July 2026 snapshot — 1,827 projects,
+        this month's movers, and the queue's fuel breakdown.
+      </p>
+
+      <div class="ask-examples">
+        <div class="examples-label">Try one of these:</div>
+        <button class="example-q" data-q="Which developer added the most new capacity this month?">Which developer added the most new capacity this month?</button>
+        <button class="example-q" data-q="Which projects slipped their COD by more than a year?">Which projects slipped their COD by more than a year?</button>
+        <button class="example-q" data-q="How many BESS projects are in Harris County, and what's the total capacity?">BESS projects in Harris County?</button>
+        <button class="example-q" data-q="List all interconnecting entities whose names suggest they're data centers.">Data-center-linked developers in the queue?</button>
+        <button class="example-q" data-q="What's the largest single project in the West CDR zone that's already signed an Interconnection Agreement?">Largest IA-signed project in the West zone?</button>
+      </div>
+
+      <form id="ask-form">
+        <textarea id="ask-input" placeholder="Ask about projects, developers, capacity, changes…" rows="2" maxlength="500"></textarea>
+        <div class="ask-form-row">
+          <span class="ask-hint">Answers are AI-generated. Verify numbers against project pages.</span>
+          <button type="submit" id="ask-submit">Ask →</button>
+        </div>
+      </form>
+
+      <div id="ask-answer" class="ask-answer"></div>
     </div>
   </div>
 
@@ -876,6 +935,77 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     btn.classList.add('active');
     moversFilter = btn.dataset.ct;
     renderMovers();
+  });
+
+  // ---- Ask (LLM) ----
+  const askForm = document.getElementById('ask-form');
+  const askInput = document.getElementById('ask-input');
+  const askSubmit = document.getElementById('ask-submit');
+  const askAnswer = document.getElementById('ask-answer');
+
+  function mdRender(md) {
+    // Tiny markdown renderer: paragraphs, bold, italics, links, lists, inline code.
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let html = esc(md);
+    // Fenced code -> inline (we don't expect much)
+    html = html.replace(/```([\s\S]*?)```/g, (_, c) => `<pre>${c.trim()}</pre>`);
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Bold
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Links [text](url)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    // Lists: lines starting with "- " or "* "
+    const lines = html.split('\n');
+    let out = [];
+    let inList = false;
+    for (const line of lines) {
+      const m = line.match(/^\s*[-*]\s+(.*)$/);
+      if (m) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${m[1]}</li>`);
+      } else {
+        if (inList) { out.push('</ul>'); inList = false; }
+        if (line.trim()) out.push(`<p>${line}</p>`);
+      }
+    }
+    if (inList) out.push('</ul>');
+    return out.join('');
+  }
+
+  async function askQuestion(q) {
+    askAnswer.innerHTML = '<div class="loading">Thinking…</div>';
+    askSubmit.disabled = true;
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question: q }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        askAnswer.innerHTML = `<div class="error">${data.error || 'Request failed.'}</div>`;
+      } else {
+        askAnswer.innerHTML = mdRender(data.answer || '(no answer)');
+      }
+    } catch (e) {
+      askAnswer.innerHTML = `<div class="error">Network error: ${e.message}</div>`;
+    } finally {
+      askSubmit.disabled = false;
+    }
+  }
+
+  askForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = askInput.value.trim();
+    if (q) askQuestion(q);
+  });
+
+  document.querySelectorAll('.example-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      askInput.value = btn.dataset.q;
+      askQuestion(btn.dataset.q);
+    });
   });
 
   // ---- Boot ----

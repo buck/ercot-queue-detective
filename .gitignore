@@ -5,5 +5,7 @@ data/raw/
 __pycache__/
 *.pyc
 web/node_modules/
+.env
+.env.local
 *.db-shm
 *.db-wal

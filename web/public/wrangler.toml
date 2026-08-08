@@ -1,5 +1,10 @@
 name = "ercot-queue-detective"
 compatibility_date = "2026-08-08"
+main = "_worker.js"
 
 [assets]
 directory = "."
+binding = "ASSETS"
+
+# OPENAI_API_KEY is set as a secret via `wrangler secret put OPENAI_API_KEY`
+# or via the Cloudflare dashboard → Workers → Settings → Variables
