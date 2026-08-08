@@ -137,8 +137,17 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     .badge-CAPACITY_CHANGED { background: #2a1a3a; color: #c4b5fd; }
     .badge-OWNERSHIP_CHANGED { background: #1a2a1a; color: #86efac; }
     .mover-detail { font-size: 0.73rem; color: var(--muted); margin-top: 0.4rem; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mover-entity { font-size: 0.75rem; color: #cbd5e1; margin-top: 0.4rem; }
+    .mover-entity .lbl { color: var(--muted); }
     .mover-link { display: block; margin-top: 0.6rem; font-size: 0.75rem; color: var(--accent); text-decoration: none; }
     .mover-link:hover { text-decoration: underline; }
+    .ai-dc-tag {
+      display: inline-block; margin-left: 0.4rem;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em;
+      padding: 0.1rem 0.45rem; border-radius: 999px;
+      background: rgba(251,191,36,0.12); color: #fbbf24;
+      border: 1px solid rgba(251,191,36,0.4);
+    }
 
     .movers-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .movers-filters button { padding: 0.35rem 0.75rem; font-size: 0.78rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
@@ -314,8 +323,13 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
         <div class="story-eyebrow">This month · July 2026</div>
         <div class="story-lede">
           Nine new gas plants — 4.5 GW total — filed by developers with
-          data-center-flavored names (Kalnin, Palomino, <em>CleanAI, LLC</em>).
+          data-center-flavored names (<em>Kalnin Ventures</em>, <em>Palomino Alpha</em>).
           126 projects also pushed their target online date back.
+        </div>
+        <div class="story-lede" style="margin-top:0.4rem">
+          Already queued but on-theme: <em>CleanAI, LLC</em> (two gas plants
+          in Freestone County) and gas builds by <em>Bullock Data Center</em>
+          and <em>Liberty Data Center I</em>.
         </div>
         <button class="story-cta" data-jump="movers-tab">See what changed →</button>
       </div>
@@ -326,6 +340,10 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
           <div class="toggle-row">
             <input type="checkbox" id="changed-only" />
             <label for="changed-only">Changed this month only</label>
+          </div>
+          <div class="toggle-row" title="Developers whose name matches a curated list of AI / data-center-flavored operators (CleanAI, Kalnin Ventures, Palomino Alpha, Bullock Data Center, Liberty Data Center I) plus any entity with 'Data Center' in the name.">
+            <input type="checkbox" id="ai-dc-only" />
+            <label for="ai-dc-only">◆ AI / data-center flavored</label>
           </div>
         </div>
       </div>
@@ -387,6 +405,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
         <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div> BESS/Other</div>
         <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Nuclear</div>
         <div class="legend-item"><div class="legend-dot" style="background:#94a3b8"></div> Other</div>
+        <div class="legend-item" title="Developer name matches an AI / data-center-flavored operator"><div class="legend-dot" style="background:#f97316; border:2px solid #fbbf24; box-sizing:border-box"></div> AI / data-center</div>
       </div>
       <div id="project-card" style="display:none" class="project-card">
         <button class="card-close" id="card-close">✕</button>
@@ -462,6 +481,20 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       </p>
 
       <dl class="glossary">
+        <dt>◆ AI / data-center flavored</dt>
+        <dd>
+          A soft classification used on the map and movers page. Flagged when the
+          <em>interconnecting entity</em> (developer/owner name) matches a curated list
+          of operators clearly connected to the AI/data-center theme —
+          <em>CleanAI, LLC</em>, <em>Kalnin Ventures, LLC</em>,
+          <em>Palomino Alpha, LLC</em>, <em>Bullock Data Center, LLC</em>,
+          <em>Liberty Data Center I, LLC</em> — or when the entity name simply
+          contains "Data Center". This is <em>soft evidence, not proof</em>: the
+          queue doesn't disclose end-customers. But when developers named "Data
+          Center, LLC" file 1.4 GW gas plants, the pattern is worth surfacing.
+          Toggle the sidebar checkbox to filter the map to just these.
+        </dd>
+
         <dt>BESS</dt>
         <dd>
           Battery Energy Storage System. Grid-scale batteries. In the ERCOT data they
@@ -728,6 +761,24 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     return map[fuel] || 'pill-fuel-default';
   }
 
+  // Heuristic: is the interconnecting entity a developer that reads as AI /
+  // data-center-flavored? Curated list of specific operators plus any entity
+  // whose name contains "Data Center". This is *soft* evidence — a developer
+  // name is not a customer disclosure — but the pattern is strong enough to
+  // be worth surfacing on the map.
+  const AI_DC_ENTITIES = new Set([
+    'CleanAI, LLC',
+    'Kalnin Ventures, LLC',
+    'Palomino Alpha, LLC',
+    'Bullock Data Center, LLC',
+    'Liberty Data Center I, LLC',
+  ]);
+  function isAIDCFlavored(entity) {
+    if (!entity) return false;
+    if (AI_DC_ENTITIES.has(entity)) return true;
+    return /\bdata\s*center\b/i.test(entity);
+  }
+
   // ---- Load data ----
   let allProjects = [];
   let moversData = null;
@@ -820,6 +871,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
             entity: p.interconnecting_entity || '',
             phase: p.gim_study_phase || '',
             changed: changedINRs.has(p.inr) ? 1 : 0,
+            ai_dc: isAIDCFlavored(p.interconnecting_entity) ? 1 : 0,
             color: fuelColor(p.fuel),
           }
         }))
@@ -869,9 +921,17 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
           ? ['interpolate', ['linear'], ['get', 'mw'], 0, 6, 100, 9, 500, 13, 1000, 18, 2000, 24]
           : ['interpolate', ['linear'], ['get', 'mw'], 0, 4, 100, 6, 500, 9, 1000, 13, 2000, 18],
         'circle-color': ['get', 'color'],
-        'circle-opacity': ['case', ['==', ['get', 'changed'], 1], 1.0, 0.6],
-        'circle-stroke-width': ['case', ['==', ['get', 'changed'], 1], 2, 0],
-        'circle-stroke-color': '#ffffff',
+        'circle-opacity': ['case',
+          ['==', ['get', 'ai_dc'], 1], 1.0,
+          ['==', ['get', 'changed'], 1], 1.0,
+          0.6],
+        'circle-stroke-width': ['case',
+          ['==', ['get', 'ai_dc'], 1], 3,
+          ['==', ['get', 'changed'], 1], 2,
+          0],
+        'circle-stroke-color': ['case',
+          ['==', ['get', 'ai_dc'], 1], '#fbbf24',
+          '#ffffff'],
       }
     });
 
@@ -931,6 +991,13 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       changePill.textContent = 'Changed this month';
       pills.appendChild(changePill);
     }
+    if (props.ai_dc) {
+      const aiPill = document.createElement('span');
+      aiPill.className = 'ai-dc-tag';
+      aiPill.textContent = '◆ AI/DC-flavored';
+      aiPill.title = 'Developer name matches an AI / data-center-flavored operator';
+      pills.appendChild(aiPill);
+    }
 
     document.getElementById('card-detail-btn').onclick = () => {
       window.location.href = `/project/${props.inr}`;
@@ -956,6 +1023,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     const minMW = parseInt(document.getElementById('filter-mw').value) || 0;
     const phase = document.getElementById('filter-phase').value;
     const changedOnly = document.getElementById('changed-only').checked;
+    const aiDCOnly = document.getElementById('ai-dc-only').checked;
 
     return allProjects.filter(p => {
       if (fuel && p.fuel !== fuel) return false;
@@ -963,6 +1031,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       if (minMW > 0 && (p.capacity_mw || 0) < minMW) return false;
       if (phase && !(p.gim_study_phase || '').includes(phase)) return false;
       if (changedOnly && !changedINRs.has(p.inr)) return false;
+      if (aiDCOnly && !isAIDCFlavored(p.interconnecting_entity)) return false;
       return true;
     });
   }
@@ -983,6 +1052,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   document.getElementById('filter-zone').addEventListener('change', applyFilters);
   document.getElementById('filter-phase').addEventListener('change', applyFilters);
   document.getElementById('changed-only').addEventListener('change', applyFilters);
+  document.getElementById('ai-dc-only').addEventListener('change', applyFilters);
   document.getElementById('filter-mw').addEventListener('input', (e) => {
     const v = parseInt(e.target.value);
     document.getElementById('mw-label').textContent = v === 0 ? '0+ MW' : `${v}+ MW`;
@@ -995,6 +1065,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     document.getElementById('mw-label').textContent = '0+ MW';
     document.getElementById('filter-phase').value = '';
     document.getElementById('changed-only').checked = false;
+    document.getElementById('ai-dc-only').checked = false;
     applyFilters();
   });
 
@@ -1016,7 +1087,12 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       grid.innerHTML = '<p style="color:var(--muted)">No movers match this filter.</p>';
       return;
     }
-    grid.innerHTML = filtered.map(m => `
+    grid.innerHTML = filtered.map(m => {
+      const isAI = isAIDCFlavored(m.interconnecting_entity);
+      const entityLine = m.interconnecting_entity
+        ? `<div class="mover-entity"><span class="lbl">by</span> ${escHtml(m.interconnecting_entity)}${isAI ? ' <span class="ai-dc-tag" title="AI / data-center-flavored developer">◆ AI/DC</span>' : ''}</div>`
+        : '';
+      return `
       <div class="mover-card">
         <div class="mover-header">
           <div class="mover-name">${escHtml(m.project_name || m.inr)}</div>
@@ -1025,9 +1101,11 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
         <div class="mover-meta">${escHtml(m.county || '')} · ${escHtml(m.fuel_label || m.fuel || '')}</div>
         <span class="change-badge badge-${m.change_type}">${changeLabel(m.change_type)}</span>
         <div class="mover-detail">${escHtml(m.detail || '')}</div>
+        ${entityLine}
         <a class="mover-link" href="/project/${m.inr}">View timeline →</a>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function changeLabel(ct) {

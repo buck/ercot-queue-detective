@@ -181,7 +181,7 @@ def get_movers(
         sql = f"""
             SELECT d.inr, d.change_type, d.detail,
                    p.project_name, p.fuel, p.fuel_label, p.county, p.capacity_mw,
-                   p.lat, p.lon, p.gim_study_phase
+                   p.lat, p.lon, p.gim_study_phase, p.interconnecting_entity
             FROM diffs d
             LEFT JOIN projects p ON d.inr = p.inr
             WHERE {' AND '.join(clauses)}
