@@ -1,5 +1,5 @@
-# build output
-dist/
+# build output committed intentionally for Cloudflare static serving
+# dist/
 # generated types
 .astro/
 
