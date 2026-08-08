@@ -95,10 +95,11 @@ def list_projects(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = f"""
         SELECT DISTINCT p.inr, p.project_name, p.gim_study_phase, p.phase_ordinal,
-               p.interconnecting_entity, p.county, p.lat, p.lon, p.cdr_zone,
+               p.interconnecting_entity, p.poi_location, p.county, p.lat, p.lon, p.cdr_zone,
                p.projected_cod, p.fuel, p.fuel_label, p.technology, p.capacity_mw,
                p.source_type, p.latest_snapshot_date, p.ia_signed,
-               p.construction_start, p.construction_end
+               p.construction_start, p.construction_end,
+               p.ss_started, p.ss_complete, p.fis_requested, p.fis_approved
         FROM projects p
         {join}
         {where}

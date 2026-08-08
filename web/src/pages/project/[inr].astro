@@ -79,6 +79,10 @@ const FUEL_LABELS: Record<string, string> = {
     .milestone-table .pending { color: var(--muted); }
 
     .inr-tag { font-size: 0.72rem; font-family: monospace; color: var(--muted); margin-top: 0.5rem; }
+
+    .poi-block { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.875rem 1rem; margin: 0 0 2rem; }
+    .poi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.4rem; }
+    .poi-value { font-size: 0.85rem; color: var(--text); white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; }
     .source-attr { font-size: 0.75rem; color: var(--muted); margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
   </style>
 </head>
@@ -112,6 +116,13 @@ const FUEL_LABELS: Record<string, string> = {
             <div class="v">{project.ia_signed ? project.ia_signed.slice(0, 10) : 'No'}</div>
           </div>
         </div>
+
+        {project.poi_location && (
+          <div class="poi-block">
+            <div class="poi-label">Point of Interconnection</div>
+            <div class="poi-value">{project.poi_location}</div>
+          </div>
+        )}
 
         <!-- Change history -->
         <div id="timeline-container">
