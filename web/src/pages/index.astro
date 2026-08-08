@@ -89,8 +89,11 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     .project-card {
       position: absolute; bottom: 1rem; left: 1rem; right: 280px; max-width: 480px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem;
-      padding: 1rem; z-index: 10; animation: slideUp 0.2s ease;
+      padding: 1rem; z-index: 50; animation: slideUp 0.2s ease;
+      touch-action: manipulation;
     }
+    .project-card button { touch-action: manipulation; }
+    .card-close { min-width: 44px; min-height: 44px; }  /* Apple tap target */
     @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .project-card h2 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.35rem; }
     .project-card .meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.75rem; }
@@ -748,6 +751,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   let selectedINR = null;
 
   function initMap() {
+    const isTouch = matchMedia('(pointer: coarse)').matches;
     map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -766,7 +770,16 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       zoom: 5.2,
       minZoom: 4,
       maxZoom: 14,
+      // On touch devices, a finger tap wobbles ~5-10px; default 3px counts it
+      // as a drag and discards the click. Bump so taps register on dots.
+      clickTolerance: isTouch ? 10 : 3,
     });
+
+    // Double-tap-to-zoom competes with tap-on-dot on touch. Disable it —
+    // users can pinch-to-zoom instead.
+    if (isTouch) {
+      map.doubleClickZoom.disable();
+    }
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
     map.on('load', () => {
@@ -851,10 +864,10 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       source: 'projects',
       filter: ['!', ['has', 'point_count']],
       paint: {
-        'circle-radius': [
-          'interpolate', ['linear'], ['get', 'mw'],
-          0, 4, 100, 6, 500, 9, 1000, 13, 2000, 18
-        ],
+        // Larger dots on touch devices so taps hit their intended target.
+        'circle-radius': matchMedia('(pointer: coarse)').matches
+          ? ['interpolate', ['linear'], ['get', 'mw'], 0, 6, 100, 9, 500, 13, 1000, 18, 2000, 24]
+          : ['interpolate', ['linear'], ['get', 'mw'], 0, 4, 100, 6, 500, 9, 1000, 13, 2000, 18],
         'circle-color': ['get', 'color'],
         'circle-opacity': ['case', ['==', ['get', 'changed'], 1], 1.0, 0.6],
         'circle-stroke-width': ['case', ['==', ['get', 'changed'], 1], 2, 0],
@@ -862,18 +875,27 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       }
     });
 
-    // Click handlers
-    map.on('click', 'clusters', (e) => {
-      const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-      const clusterId = features[0].properties.cluster_id;
-      map.getSource('projects').getClusterExpansionZoom(clusterId).then(zoom => {
-        map.easeTo({ center: features[0].geometry.coordinates, zoom });
-      });
-    });
+    // Click handlers — use a bounding-box query around the tap point so a
+    // slightly-off finger tap still finds the nearest dot.
+    const TAP_PAD = matchMedia('(pointer: coarse)').matches ? 12 : 4;
+    function bboxAround(p) {
+      return [[p.x - TAP_PAD, p.y - TAP_PAD], [p.x + TAP_PAD, p.y + TAP_PAD]];
+    }
 
-    map.on('click', 'projects-points', (e) => {
-      const props = e.features[0].properties;
-      showProjectCard(props);
+    map.on('click', (e) => {
+      // Prefer a point tap; if none, try a cluster tap.
+      const pointHits = map.queryRenderedFeatures(bboxAround(e.point), { layers: ['projects-points'] });
+      if (pointHits.length) {
+        showProjectCard(pointHits[0].properties);
+        return;
+      }
+      const clusterHits = map.queryRenderedFeatures(bboxAround(e.point), { layers: ['clusters'] });
+      if (clusterHits.length) {
+        const clusterId = clusterHits[0].properties.cluster_id;
+        map.getSource('projects').getClusterExpansionZoom(clusterId).then(zoom => {
+          map.easeTo({ center: clusterHits[0].geometry.coordinates, zoom });
+        });
+      }
     });
 
     map.on('mouseenter', 'projects-points', () => { map.getCanvas().style.cursor = 'pointer'; });
@@ -917,9 +939,15 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     document.getElementById('project-card').style.display = 'block';
   }
 
-  document.getElementById('card-close').addEventListener('click', () => {
+  // Close button: stop event bubbling so MapLibre's underlying canvas
+  // doesn't also receive the tap (which had been re-opening the card).
+  function closeCard(e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
     document.getElementById('project-card').style.display = 'none';
-  });
+  }
+  const cardCloseBtn = document.getElementById('card-close');
+  cardCloseBtn.addEventListener('click', closeCard);
+  cardCloseBtn.addEventListener('touchend', closeCard);
 
   // ---- Filters ----
   function getFilteredProjects() {
