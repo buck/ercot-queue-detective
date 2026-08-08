@@ -80,6 +80,36 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       background: none; border: none; padding: 0; cursor: pointer;
     }
     .story-cta:hover { text-decoration: underline; }
+    .story-cta-secondary {
+      background: none; border: none; color: var(--muted);
+      font-size: 0.8rem; padding: 0; margin-top: 0.4rem; cursor: pointer;
+      display: block; text-align: left;
+    }
+    .story-cta-secondary:hover { color: var(--text); text-decoration: underline; }
+
+    .demo-shortcuts {
+      background: rgba(56,189,248,0.05); border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 0.5rem; padding: 0.65rem 0.75rem; margin-bottom: 1rem;
+    }
+    .demo-shortcuts h3 {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--accent); margin-bottom: 0.5rem; font-weight: 700;
+    }
+    .demo-shortcuts button {
+      display: block; width: 100%; text-align: left;
+      background: transparent; border: 1px solid transparent;
+      color: #cbd5e1; font-size: 0.8rem; line-height: 1.35;
+      padding: 0.45rem 0.55rem; margin-bottom: 0.3rem;
+      border-radius: 0.375rem; cursor: pointer;
+    }
+    .demo-shortcuts button:hover {
+      background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.3);
+      color: var(--text);
+    }
+    .demo-shortcuts button:last-child { margin-bottom: 0; }
+    .demo-shortcuts .shortcut-hint {
+      display: block; font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem;
+    }
 
     /* ---- Map panel ---- */
     .map-panel { flex: 1; position: relative; }
@@ -322,16 +352,34 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       <div class="story-callout">
         <div class="story-eyebrow">This month · July 2026</div>
         <div class="story-lede">
-          Nine new gas plants — 4.5 GW total — filed by developers with
-          data-center-flavored names (<em>Kalnin Ventures</em>, <em>Palomino Alpha</em>).
-          126 projects also pushed their target online date back.
+          The signature of AI-driven load growth is showing up in the queue:
+          gas plants by developers named <em>CleanAI</em>,
+          <em>Kalnin Ventures</em>, <em>Palomino Alpha</em>,
+          <em>Bullock Data Center</em>, <em>Liberty Data Center I</em>.
+          Kalnin and Palomino filed <strong>9 new gas plants totalling 4.5 GW</strong> this month alone.
         </div>
-        <div class="story-lede" style="margin-top:0.4rem">
-          Already queued but on-theme: <em>CleanAI, LLC</em> (two gas plants
-          in Freestone County) and gas builds by <em>Bullock Data Center</em>
-          and <em>Liberty Data Center I</em>.
-        </div>
-        <button class="story-cta" data-jump="movers-tab">See what changed →</button>
+        <button class="story-cta" data-shortcut="filter-ai-dc">Show AI / data-center plants on the map →</button>
+        <button class="story-cta-secondary" data-jump="movers-tab">See all this month's movers →</button>
+      </div>
+
+      <div class="demo-shortcuts">
+        <h3>Jump to</h3>
+        <button data-focus="28INR0509">
+          Jack Co. — Kalnin's twins
+          <span class="shortcut-hint">Thunder Bird 1 &amp; 2 · 2.5 GW gas</span>
+        </button>
+        <button data-focus="27INR0651">
+          Freestone Co. — CleanAI, LLC
+          <span class="shortcut-hint">Three Canes Gas P1 &amp; P2 · MW undisclosed</span>
+        </button>
+        <button data-focus="33INR0005">
+          Hill Co. — Bullock / Liberty DC
+          <span class="shortcut-hint">Two 1.4 GW gas plants at the same site</span>
+        </button>
+        <button data-shortcut="filter-ai-dc">
+          ◆ All AI / data-center flavored
+          <span class="shortcut-hint">Filter map to just these developers</span>
+        </button>
       </div>
 
       <div>
@@ -840,6 +888,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       map.resize();
       setTimeout(() => map.resize(), 100);
       setTimeout(() => map.resize(), 500);
+      applyURLParams();
     });
 
     // Recompute size on window resize, orientation change, and any
@@ -1067,6 +1116,55 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     document.getElementById('changed-only').checked = false;
     document.getElementById('ai-dc-only').checked = false;
     applyFilters();
+  });
+
+  // ---- Deep-linking: ?focus=<INR> and ?filter=ai-dc ----
+  function focusOn(inr) {
+    const p = allProjects.find(x => x.inr === inr);
+    if (!p || !p.lat || !p.lon) return;
+    activateTab('map-tab');
+    if (typeof closeSidebar === 'function') closeSidebar();
+    map.flyTo({ center: [p.lon, p.lat], zoom: 11, duration: 800 });
+    showProjectCard({
+      inr: p.inr,
+      name: p.project_name || p.inr,
+      fuel: p.fuel || 'OTH',
+      mw: p.capacity_mw || 0,
+      county: p.county || '',
+      zone: p.cdr_zone || '',
+      cod: p.projected_cod || '',
+      entity: p.interconnecting_entity || '',
+      phase: p.gim_study_phase || '',
+      changed: changedINRs.has(p.inr) ? 1 : 0,
+      ai_dc: isAIDCFlavored(p.interconnecting_entity) ? 1 : 0,
+    });
+  }
+
+  function activateAIDCFilter() {
+    activateTab('map-tab');
+    if (typeof closeSidebar === 'function') closeSidebar();
+    document.getElementById('ai-dc-only').checked = true;
+    applyFilters();
+    closeCard();
+    if (map) map.easeTo({ center: [-99.5, 31.5], zoom: 5.2, duration: 800 });
+  }
+
+  function applyURLParams() {
+    const p = new URLSearchParams(location.search);
+    if (p.get('filter') === 'ai-dc') {
+      document.getElementById('ai-dc-only').checked = true;
+      applyFilters();
+    }
+    const focus = p.get('focus');
+    if (focus) setTimeout(() => focusOn(focus), 150);
+  }
+
+  // Demo Shortcuts + primary story CTA
+  document.querySelectorAll('[data-focus]').forEach(btn => {
+    btn.addEventListener('click', () => focusOn(btn.dataset.focus));
+  });
+  document.querySelectorAll('[data-shortcut="filter-ai-dc"]').forEach(btn => {
+    btn.addEventListener('click', activateAIDCFilter);
   });
 
   // ---- Movers ----
