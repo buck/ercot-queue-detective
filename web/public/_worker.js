@@ -65,31 +65,55 @@ async function handleAsk(request, env) {
       entity: p.interconnecting_entity,
     }));
 
-    const compactMovers = (movers.movers || []).map(m => ({
-      inr: m.inr,
-      change: m.change_type,
-      detail: m.detail,
-      name: m.project_name,
-      mw: m.capacity_mw,
-      fuel: m.fuel,
-      county: m.county,
-    }));
+    // Pre-compute slip magnitude for COD changes so the LLM doesn't do date math.
+    function slipDays(detail) {
+      if (!detail || typeof detail !== 'string') return null;
+      const m = detail.match(/(\d{4}-\d{2}-\d{2})\s*→\s*(\d{4}-\d{2}-\d{2})/);
+      if (!m) return null;
+      const a = new Date(m[1] + 'T00:00:00Z').getTime();
+      const b = new Date(m[2] + 'T00:00:00Z').getTime();
+      if (isNaN(a) || isNaN(b)) return null;
+      return Math.round((b - a) / (1000 * 60 * 60 * 24));
+    }
+
+    const compactMovers = (movers.movers || []).map(m => {
+      const base = {
+        inr: m.inr,
+        change: m.change_type,
+        detail: m.detail,
+        name: m.project_name,
+        mw: m.capacity_mw,
+        fuel: m.fuel,
+        county: m.county,
+      };
+      if (m.change_type === 'COD_SLIPPED' || m.change_type === 'COD_ADVANCED') {
+        const days = slipDays(m.detail);
+        if (days !== null) {
+          base.slip_days = days;
+          base.slip_years = Math.round((days / 365.25) * 100) / 100;
+        }
+      }
+      return base;
+    });
 
     const systemPrompt = `You are answering questions about the ERCOT (Texas) generator interconnection queue based on the July 2026 snapshot.
 
-Answer concisely (typically 1-4 sentences, or a short bulleted list). Name specific projects with their INRs. Format links to project pages as [Project Name](/project/INR/). Round MW figures reasonably.
-
 Data provided in the user message:
 - summary: total counts and MW by fuel category
-- movers: this month's changes (June 2026 → July 2026). Each has change_type ∈ {NEW, WITHDRAWN, STATUS_ADVANCED, STATUS_REVERTED, COD_SLIPPED, COD_ADVANCED, CAPACITY_CHANGED, OWNERSHIP_CHANGED}.
+- movers: this month's changes (June 2026 → July 2026). Each has change_type ∈ {NEW, WITHDRAWN, STATUS_ADVANCED, STATUS_REVERTED, COD_SLIPPED, COD_ADVANCED, CAPACITY_CHANGED, OWNERSHIP_CHANGED}. COD_SLIPPED and COD_ADVANCED entries include pre-computed slip_days and slip_years fields — USE THESE, do not attempt date arithmetic yourself.
 - projects: current state of every project in the queue
 
-Rules:
-- Cite specific projects and INRs when relevant.
-- Use markdown. Link projects as [Name](/project/INR/).
+Answer rules:
+- Be direct and concrete. Cite specific projects and INRs.
+- Use markdown. Link projects as [Project Name](/project/INR/).
 - Do not invent data. If the question can't be answered from the provided data, say so plainly.
-- If the user asks something ambiguous, pick the most useful interpretation and answer.
-- Prefer specificity over hedging.`;
+- Do not repeat entries. Each project should appear at most once in a list.
+- Do not include entries in a list only to note they should be excluded — just leave them out.
+- For thresholds like "more than a year", use strict comparison: exactly 1 year does NOT qualify.
+- When asked for "the biggest" or "the most", give ONE answer unless clearly plural.
+- Prefer a short bulleted list over prose when enumerating.
+- Round MW to the nearest whole number. Round slip times to one decimal (e.g., "1.3 years").
+- Keep the total answer under 400 words.`;
 
     const userContent = `Summary:
 ${JSON.stringify(summary)}
@@ -115,7 +139,7 @@ Question: ${question}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
-        max_tokens: 600,
+        max_tokens: 1500,
         temperature: 0.2,
       }),
     });
