@@ -61,6 +61,26 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
 
     .result-count { font-size: 0.75rem; color: var(--muted); text-align: center; padding-top: 0.5rem; border-top: 1px solid var(--border); }
 
+    .story-callout {
+      background: linear-gradient(140deg, rgba(56,189,248,0.10), rgba(167,139,250,0.06));
+      border: 1px solid rgba(56,189,248,0.25);
+      border-radius: 0.625rem;
+      padding: 0.85rem;
+    }
+    .story-eyebrow {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.45rem;
+    }
+    .story-lede {
+      font-size: 0.82rem; line-height: 1.5; color: var(--text); margin-bottom: 0.65rem;
+    }
+    .story-lede em { color: #fbbf24; font-style: normal; font-weight: 600; }
+    .story-cta {
+      font-size: 0.72rem; font-weight: 600; color: var(--accent);
+      background: none; border: none; padding: 0; cursor: pointer;
+    }
+    .story-cta:hover { text-decoration: underline; }
+
     /* ---- Map panel ---- */
     .map-panel { flex: 1; position: relative; }
     #map { position: absolute; inset: 0; }
@@ -129,6 +149,10 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     .about-panel code { background: #1e293b; padding: 0.1em 0.4em; border-radius: 0.25rem; font-size: 0.85em; color: var(--accent); }
     .about-panel pre { background: #1e293b; border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; overflow-x: auto; font-size: 0.82rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.6; }
     .about-panel a { color: var(--accent); }
+    .about-panel em { color: #fbbf24; font-style: normal; font-weight: 600; }
+    .story-list { list-style: none; padding: 0; margin: 0 0 1rem; }
+    .story-list li { font-size: 0.9rem; color: #cbd5e1; line-height: 1.7; padding: 0.35rem 0 0.35rem 1.25rem; position: relative; }
+    .story-list li::before { content: '·'; position: absolute; left: 0.4rem; color: var(--accent); font-weight: 700; }
     .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin: 1.5rem 0; }
     .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
     .stat-box .v { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
@@ -158,7 +182,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     <h1>⚡ ERCOT Queue Detective</h1>
     <div class="header-stats">
       <span><b id="stat-projects">{total_projects.toLocaleString()}</b> projects</span>
-      <span><b id="stat-mw">{Math.round(total_large_gen_mw / 1000)}k</b> GW queued</span>
+      <span><b id="stat-mw">{Math.round(total_large_gen_mw / 1000)}</b> GW queued</span>
       <span>Updated <b>{latestLabel}</b></span>
     </div>
   </header>
@@ -172,6 +196,16 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   <!-- MAP TAB -->
   <div class="tab-panel active" id="map-tab">
     <div class="sidebar">
+      <div class="story-callout">
+        <div class="story-eyebrow">This month · July 2026</div>
+        <div class="story-lede">
+          Nine new gas plants — 4.5 GW total — filed by developers with
+          data-center-flavored names (Kalnin, Palomino, <em>CleanAI, LLC</em>).
+          126 projects also pushed their target online date back.
+        </div>
+        <button class="story-cta" data-jump="movers-tab">See what changed →</button>
+      </div>
+
       <div>
         <h3>Filters</h3>
         <div class="filter-group">
@@ -274,45 +308,98 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   <!-- ABOUT TAB -->
   <div class="tab-panel" id="about-tab">
     <div class="about-panel">
-      <h2>ERCOT Queue Detective</h2>
+      <h2>What this shows</h2>
       <p>
-        Every month, ERCOT publishes the Generator Interconnection Status (GIS) report — a spreadsheet
-        listing every proposed power plant in Texas that has requested a grid connection study.
-        This tool tracks that queue month-over-month and surfaces what changed: new entrants,
-        projects that advanced through studies, capacity revisions, COD slips, and withdrawals.
+        Every power plant proposed in Texas — from a 5-megawatt battery to a 1.5-gigawatt
+        gas plant — first appears in one place: the ERCOT Generator Interconnection Status
+        queue. It's a monthly Excel file, buried on ERCOT's website, listing 1,800+ projects.
+        It's the earliest signal of what will actually be built — years before permits,
+        press releases, or news coverage.
       </p>
       <p>
-        The queue is the leading indicator of Texas grid buildout — 6-18 months ahead of permits
-        and construction. Right now there are <strong>{total_large_gen_mw && Math.round(total_large_gen_mw / 1000)}+ GW</strong> of proposed generation
-        in queue, dominated by solar, BESS, and gas.
+        This site downloads that file every month, diffs it against the prior month, and
+        surfaces what changed.
+      </p>
+
+      <h3>What's in the queue right now</h3>
+      <p>
+        <strong>{Math.round((total_large_gen_mw || 0) / 1000)} gigawatts</strong> of
+        proposed generation are waiting to plug into the Texas grid. For scale:
+        Texas peak demand last summer was about 85 GW. What's proposed here is roughly
+        five years of the entire state's electricity supply. Most of it will never be built —
+        but tracking which projects advance, slip, or vanish is how you see the Texas
+        grid buildout in real time.
       </p>
 
       <div class="stat-row">
         <div class="stat-box"><div class="v">{total_projects.toLocaleString()}</div><div class="l">Projects tracked</div></div>
-        <div class="stat-box"><div class="v">{Math.round((total_large_gen_mw || 0) / 1000)}k GW</div><div class="l">Total queued capacity</div></div>
+        <div class="stat-box"><div class="v">{Math.round((total_large_gen_mw || 0) / 1000)} GW</div><div class="l">Total queued capacity</div></div>
         <div class="stat-box"><div class="v">31</div><div class="l">Monthly snapshots</div></div>
-        <div class="stat-box"><div class="v">Monthly</div><div class="l">Refresh cadence</div></div>
+        <div class="stat-box"><div class="v">2024–2026</div><div class="l">History window</div></div>
       </div>
+
+      <h3>What changed in the July 2026 report</h3>
+      <ul class="story-list">
+        <li><strong>{this_month_changes?.NEW ?? 0} new projects</strong> entered the queue (11.2 GW proposed)</li>
+        <li><strong>{this_month_changes?.WITHDRAWN ?? 0} projects were withdrawn</strong> (5.6 GW removed)</li>
+        <li><strong>{this_month_changes?.COD_SLIPPED ?? 0} projects slipped their target completion date</strong> (24.3 GW affected)</li>
+        <li><strong>{this_month_changes?.STATUS_ADVANCED ?? 0} projects advanced</strong> through screening or study milestones</li>
+        <li><strong>{this_month_changes?.OWNERSHIP_CHANGED ?? 0} projects changed hands</strong></li>
+      </ul>
+      <p>
+        The month's biggest story: nine of the new gas plants — from Kalnin Ventures
+        (2 × 1,273 MW in Jack County), Palomino Alpha (5 × 400 MW in Guadalupe County),
+        and a developer literally named <em>CleanAI, LLC</em> (2 plants in Freestone County)
+        — total 4.5+ GW of new gas proposed in a single month. Names like these are
+        the signature of AI-data-center-driven load growth showing up in the physical grid.
+      </p>
+
+      <h3>Three things to look at right now</h3>
+      <ul class="story-list">
+        <li>
+          <a href="/project/33INR0005/"><strong>Bullock Gas</strong></a> — 1.4 GW gas plant
+          owned by <em>Bullock Data Center, LLC</em>. Entered the queue in June, already
+          advanced through screening study by July.
+        </li>
+        <li>
+          <a href="/project/28INR0509/"><strong>Thunder Bird 2 Gas</strong></a> — one of two
+          identical 1,273 MW gas plants from Kalnin Ventures, both filed in July in Jack County.
+        </li>
+        <li>
+          <a href="/project/30INR0052/"><strong>Lost Pines Power Park</strong></a> — 880 MW
+          gas plant that just pushed its target online date from Dec 2030 to Jun 2033.
+          A two-and-a-half-year slip in one report.
+        </li>
+      </ul>
 
       <h3>Data source</h3>
       <p>
         Raw data: <a href="https://www.ercot.com/gridinfo/resource" target="_blank">ERCOT GIS Report</a>.
-        Downloaded monthly, parsed from Excel, stored in SQLite. Not affiliated with or endorsed by ERCOT.
-        Source: public ERCOT data, used under ERCOT's open data policy.
+        Downloaded monthly, parsed from Excel, stored in SQLite. Not affiliated with or
+        endorsed by ERCOT. Public data, used under ERCOT's open data policy.
       </p>
 
       <h3>JSON API</h3>
-      <p>All endpoints return JSON and are freely usable for non-commercial purposes.</p>
-      <pre set:html={`GET /api/summary\nGET /api/projects?fuel=SOL&min_mw=100&changed_since=2026-06-01\nGET /api/projects/{'{'}inr{'}'}\nGET /api/movers?change_type=NEW\nGET /api/filters`}></pre>
+      <p>Everything you see is queryable as JSON. Freely usable for non-commercial reporting and analysis.</p>
+      <pre set:html={`GET /api/summary                             # dashboard stats\nGET /api/projects?fuel=SOL&min_mw=100         # filtered project list\nGET /api/projects/{'{'}inr{'}'}                       # single project + change history\nGET /api/movers?change_type=NEW              # this month's biggest movers\nGET /api/filters                             # dropdown values`}></pre>
 
-      <h3>Example: biggest new projects this month</h3>
-      <pre set:html={"curl /api/movers?change_type=NEW | jq '.movers[] | {name: .project_name, mw: .capacity_mw}'"}></pre>
+      <h3>Example: biggest new gas plants this month</h3>
+      <pre set:html={"curl /api/movers?change_type=NEW | jq '.movers[] | select(.fuel==\"GAS\") | {name, mw: .capacity_mw, entity: .interconnecting_entity}'"}></pre>
 
-      <h3>Example: all COD slips above 500 MW</h3>
+      <h3>Example: every COD slip above 500 MW</h3>
       <pre>curl "/api/projects?change_type=COD_SLIPPED&amp;min_mw=500&amp;changed_since=2026-06-01"</pre>
 
-      <h3>Built at</h3>
-      <p>Candid Intelligence Hackathon, Houston, August 2026. Stack: Python + SQLite + FastAPI + Astro + MapLibre GL JS.</p>
+      <h3>Refresh cadence</h3>
+      <p>
+        Rebuilt monthly from the latest ERCOT report via GitHub Actions cron (7th of each month,
+        after ERCOT typically publishes). This snapshot is from {latestLabel}.
+      </p>
+
+      <h3>Built</h3>
+      <p>
+        Candid Intelligence Hackathon, Houston, August 2026.
+        Python + SQLite + FastAPI + Astro + MapLibre GL JS.
+      </p>
     </div>
   </div>
 </div>
@@ -323,6 +410,11 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   // ---- Tab switching ----
   const tabs = document.querySelectorAll('nav.tabs button');
   const panels = document.querySelectorAll('.tab-panel');
+  function activateTab(tabId) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+    panels.forEach(p => p.classList.toggle('active', p.id === tabId));
+    if (tabId === 'movers-tab') renderMovers();
+  }
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
       tabs.forEach(b => b.classList.remove('active'));
@@ -331,6 +423,11 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
       document.getElementById(btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'movers-tab') renderMovers();
     });
+  });
+
+  // Story callout CTA jumps to Movers tab
+  document.querySelectorAll('[data-jump]').forEach(el => {
+    el.addEventListener('click', () => activateTab(el.dataset.jump));
   });
 
   // ---- Fuel color map ----
