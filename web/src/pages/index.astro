@@ -153,6 +153,23 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
     .story-list { list-style: none; padding: 0; margin: 0 0 1rem; }
     .story-list li { font-size: 0.9rem; color: #cbd5e1; line-height: 1.7; padding: 0.35rem 0 0.35rem 1.25rem; position: relative; }
     .story-list li::before { content: '·'; position: absolute; left: 0.4rem; color: var(--accent); font-weight: 700; }
+
+    .glossary { margin: 1.5rem 0; }
+    .glossary dt {
+      font-size: 0.95rem; font-weight: 700; color: var(--accent);
+      margin-top: 1.25rem; margin-bottom: 0.25rem;
+    }
+    .glossary dt:first-child { margin-top: 0; }
+    .glossary dd {
+      font-size: 0.88rem; color: #cbd5e1; line-height: 1.65;
+      margin: 0 0 0 0; padding: 0;
+    }
+    .glossary dd code {
+      background: #1e293b; color: var(--accent);
+      padding: 0.05em 0.4em; border-radius: 0.25rem;
+      font-size: 0.85em;
+    }
+    .glossary dd em { color: #fbbf24; font-style: normal; font-weight: 600; }
     .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin: 1.5rem 0; }
     .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
     .stat-box .v { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
@@ -190,6 +207,7 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
   <nav class="tabs">
     <button class="active" data-tab="map-tab">Map</button>
     <button data-tab="movers-tab">This Month's Movers</button>
+    <button data-tab="glossary-tab">Glossary</button>
     <button data-tab="about-tab">About / API</button>
   </nav>
 
@@ -302,6 +320,133 @@ const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').to
         <button data-ct="CAPACITY_CHANGED">MW Changed</button>
       </div>
       <div class="movers-grid" id="movers-grid">Loading…</div>
+    </div>
+  </div>
+
+  <!-- GLOSSARY TAB -->
+  <div class="tab-panel" id="glossary-tab">
+    <div class="about-panel">
+      <h2>Glossary</h2>
+      <p>
+        The ERCOT queue is a technical document. A few dozen acronyms and phase names
+        show up across the map, filter sidebar, project pages, and API. Here's what they
+        mean, in plain English.
+      </p>
+
+      <dl class="glossary">
+        <dt>BESS</dt>
+        <dd>
+          Battery Energy Storage System. Grid-scale batteries. In the ERCOT data they
+          show up under fuel code <code>OTH</code> with technology <code>BA</code>.
+          They're the dominant category by project count — 881 of the 1,827 projects
+          in the current queue.
+        </dd>
+
+        <dt>CDR Zone</dt>
+        <dd>
+          <em>Capacity, Demand and Reserves</em> reporting zone. ERCOT divides Texas
+          into six regions — HOUSTON, NORTH, SOUTH, WEST, PANHANDLE, COASTAL — used
+          for planning and reserve tracking. Every project is tagged with one.
+        </dd>
+
+        <dt>COD</dt>
+        <dd>
+          <em>Commercial Operation Date.</em> The target date a project expects to
+          start generating power for the grid commercially. Slips are the norm —
+          126 projects slipped their COD in the July 2026 report alone, totaling
+          24 GW of delayed capacity.
+        </dd>
+
+        <dt>ERCOT</dt>
+        <dd>
+          <em>Electric Reliability Council of Texas.</em> The grid operator for most of
+          Texas. Publishes the monthly GIS report this site is built on.
+        </dd>
+
+        <dt>Fuel code</dt>
+        <dd>
+          Three-letter code for a project's primary energy source. Common values:
+          <code>SOL</code> (solar), <code>WIN</code> (wind), <code>GAS</code> (natural gas),
+          <code>OTH</code> (other — mostly batteries), <code>NUC</code> (nuclear),
+          <code>WAT</code> (hydro).
+        </dd>
+
+        <dt>FIS</dt>
+        <dd>
+          <em>Full Interconnection Study.</em> The deeper of the two grid-impact studies
+          ERCOT performs on a proposed project. Follows the screening study. Can take a
+          year or more; when it completes, the project is close to being able to sign
+          an Interconnection Agreement.
+        </dd>
+
+        <dt>GIM</dt>
+        <dd>
+          <em>Generation Interconnection or Modification.</em> ERCOT's umbrella term for the
+          process of connecting new generation to the grid. The "GIM Study Phase" column
+          summarizes where each project is in that process.
+        </dd>
+
+        <dt>GIS report</dt>
+        <dd>
+          <em>Generator Interconnection Status</em> report. The public monthly Excel
+          workbook ERCOT publishes at
+          <a href="https://www.ercot.com/gridinfo/resource" target="_blank">ercot.com/gridinfo/resource</a>.
+          Roughly 1,800 rows, one per proposed project. The raw source for this site.
+        </dd>
+
+        <dt>IA</dt>
+        <dd>
+          <em>Interconnection Agreement.</em> The signed contract between a project and
+          ERCOT/the transmission owner that authorizes the project to physically connect
+          to the grid. Major late-stage milestone; once signed, the project is likely to
+          get built.
+        </dd>
+
+        <dt>INR</dt>
+        <dd>
+          <em>Interconnection Request Number.</em> The unique identifier assigned to
+          every project when it enters the queue. Format is
+          <code>YYINR####</code> — the first two digits are the year the request was
+          filed (e.g. <code>26INR0546</code> was filed in 2026).
+        </dd>
+
+        <dt>MW / GW</dt>
+        <dd>
+          Megawatt / Gigawatt. Units of electrical power (not energy). 1 GW = 1,000 MW.
+          A large nuclear reactor is about 1 GW. Texas peak summer demand runs around 85 GW.
+          The ERCOT queue totals roughly 440 GW of proposed capacity.
+        </dd>
+
+        <dt>POI</dt>
+        <dd>
+          <em>Point of Interconnection.</em> The specific substation or transmission line
+          where a proposed project would physically plug into the grid. Shown on each
+          project's detail page.
+        </dd>
+
+        <dt>Screening Study (SS)</dt>
+        <dd>
+          The first, faster study ERCOT performs on a new project — a preliminary
+          check for feasibility. Projects that pass move on to the Full Interconnection
+          Study.
+        </dd>
+
+        <dt>Technology code</dt>
+        <dd>
+          Two-letter code for how a plant generates electricity. Common values:
+          <code>PV</code> (photovoltaic solar), <code>WT</code> (wind turbine),
+          <code>CC</code> (combined-cycle gas), <code>GT</code> (gas turbine),
+          <code>IC</code> (internal combustion), <code>BA</code> (battery).
+        </dd>
+
+        <dt>Withdrawn</dt>
+        <dd>
+          A project has been removed from the queue — either the developer canceled it
+          or ERCOT dropped it for missing milestones. Distinct from a project that
+          completes and becomes operational. In the current report, 31 projects were
+          withdrawn since the prior month, totaling 5.6 GW.
+        </dd>
+      </dl>
     </div>
   </div>
 
