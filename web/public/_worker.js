@@ -76,6 +76,23 @@ async function handleAsk(request, env) {
       return Math.round((b - a) / (1000 * 60 * 60 * 24));
     }
 
+    // Deduplicated list of interconnecting entities — smaller list is easier for the
+    // LLM to exhaustively scan for substring / pattern searches (e.g. "which developers
+    // look like data-center companies?"). Each entity gets its project count and total MW.
+    const entityAgg = new Map();
+    for (const p of projects) {
+      const name = (p.entity || '').trim();
+      if (!name) continue;
+      const agg = entityAgg.get(name) || { entity: name, project_count: 0, total_mw: 0, sample_inrs: [] };
+      agg.project_count += 1;
+      agg.total_mw += Number(p.mw) || 0;
+      if (agg.sample_inrs.length < 3) agg.sample_inrs.push(p.inr);
+      entityAgg.set(name, agg);
+    }
+    const entities = [...entityAgg.values()]
+      .map(a => ({ ...a, total_mw: Math.round(a.total_mw * 10) / 10 }))
+      .sort((a, b) => b.total_mw - a.total_mw);
+
     const compactMovers = (movers.movers || []).map(m => {
       const base = {
         inr: m.inr,
@@ -101,7 +118,13 @@ async function handleAsk(request, env) {
 Data provided in the user message:
 - summary: total counts and MW by fuel category
 - movers: this month's changes (June 2026 → July 2026). Each has change_type ∈ {NEW, WITHDRAWN, STATUS_ADVANCED, STATUS_REVERTED, COD_SLIPPED, COD_ADVANCED, CAPACITY_CHANGED, OWNERSHIP_CHANGED}. COD_SLIPPED and COD_ADVANCED entries include pre-computed slip_days and slip_years fields — USE THESE, do not attempt date arithmetic yourself.
-- projects: current state of every project in the queue
+- entities: deduplicated list of every interconnecting entity in the queue with its project_count, total_mw, and sample_inrs. When a question is about developers/owners/entities (e.g. "which developers", "list companies whose names…", "any owners with AI in their name"), scan THIS list, not the projects list.
+- projects: current state of every project in the queue. Use this for project-level questions.
+
+SEARCH RULES (critical — the model has failed these before):
+- When asked to find entries matching a substring or pattern in a name (like "with AI in the name" or "containing 'BESS'"), scan the ENTIRE relevant list end to end. Report EVERY match. Do not stop after finding one or two — enumerate exhaustively.
+- Case-insensitive substring matching unless the user specifies otherwise. "AI" matches "AIH", "CleanAI", "TAI Norton", "FRESH AIR", etc.
+- Distinguish project_name from entity — they are different fields. If the question is ambiguous ("with AI in the name"), check BOTH and clearly label which is which in the answer.
 
 Answer rules:
 - Be direct and concrete. Cite specific projects and INRs.
@@ -120,6 +143,9 @@ ${JSON.stringify(summary)}
 
 Movers this month (${compactMovers.length} entries):
 ${JSON.stringify(compactMovers)}
+
+Unique interconnecting entities in the queue (${entities.length} entries; scan this list — not the projects list — when the question is about developers/owners/entities):
+${JSON.stringify(entities)}
 
 All projects (${projects.length} entries):
 ${JSON.stringify(projects)}
