@@ -5,6 +5,5 @@ data/raw/
 __pycache__/
 *.pyc
 web/node_modules/
-web/dist/
 *.db-shm
 *.db-wal

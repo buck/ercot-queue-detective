@@ -1,0 +1,1 @@
+import"https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js";
