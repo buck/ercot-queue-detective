@@ -1,14 +1,15 @@
 ---
 import projects from '../../../public/api/projects.json';
+import diffsData from '../../../public/api/diffs_by_inr.json';
 
 export function getStaticPaths() {
   return (projects.projects || []).map(p => ({
     params: { inr: p.inr },
-    props: { project: p },
+    props: { project: p, diffs: (diffsData as Record<string, unknown[]>)[p.inr] || [] },
   }));
 }
 
-const { project } = Astro.props;
+const { project, diffs } = Astro.props;
 const { inr } = Astro.params;
 
 const CHANGE_LABELS: Record<string, string> = {
@@ -153,44 +154,24 @@ const FUEL_LABELS: Record<string, string> = {
     )}
   </div>
 
-  <script define:vars={{ inr, CHANGE_LABELS }}>
-    async function loadTimeline() {
-      const container = document.getElementById('timeline-container');
-      try {
-        const res = await fetch(`/api/projects/${inr}`, {
-          // Try the live API first; fall back to no history if unavailable
-        }).catch(() => null);
-
-        if (!res || !res.ok) {
-          container.querySelector('p').textContent = 'No change history available in static mode.';
-          return;
-        }
-        const data = await res.json();
-        const diffs = data.diffs || [];
-
-        if (diffs.length === 0) {
-          container.querySelector('p').textContent = 'No changes recorded for this project.';
-          return;
-        }
-
-        container.innerHTML = '<h2>Change history</h2><div class="timeline" id="tl"></div>';
-        const tl = document.getElementById('tl');
-
-        diffs.forEach(d => {
-          const div = document.createElement('div');
-          div.className = `tl-event type-${d.change_type}`;
-          div.innerHTML = `
-            <div class="date">${d.to_snapshot}</div>
-            <div class="label">${CHANGE_LABELS[d.change_type] || d.change_type}</div>
-            <div class="detail">${d.detail || ''}</div>
-          `;
-          tl.appendChild(div);
-        });
-      } catch (e) {
-        container.querySelector('p').textContent = 'Timeline requires the live API server.';
-      }
+  <script define:vars={{ diffs, CHANGE_LABELS }}>
+    const container = document.getElementById('timeline-container');
+    if (!diffs || diffs.length === 0) {
+      container.querySelector('p').textContent = 'No changes recorded for this project.';
+    } else {
+      container.innerHTML = '<h2>Change history</h2><div class="timeline" id="tl"></div>';
+      const tl = document.getElementById('tl');
+      diffs.forEach(d => {
+        const div = document.createElement('div');
+        div.className = `tl-event type-${d.change_type}`;
+        div.innerHTML = `
+          <div class="date">${d.to_snapshot}</div>
+          <div class="label">${CHANGE_LABELS[d.change_type] || d.change_type}</div>
+          <div class="detail">${d.detail || ''}</div>
+        `;
+        tl.appendChild(div);
+      });
     }
-    loadTimeline();
   </script>
 </body>
 </html>
