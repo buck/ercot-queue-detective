@@ -109,7 +109,8 @@ Question: ${question}`;
         'authorization': `Bearer ${env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        // gpt-4.1-mini: 1M-token context, comparable quality to gpt-4o, faster
+        model: 'gpt-4.1-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
