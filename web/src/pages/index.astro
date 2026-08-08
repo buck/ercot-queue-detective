@@ -1,113 +1,643 @@
 ---
+import summary from '../../public/api/summary.json';
+import filters from '../../public/api/filters.json';
+
+const { latest_snapshot, prev_snapshot, total_projects, total_large_gen_mw, this_month_changes, fuel_breakdown } = summary;
+const latestLabel = latest_snapshot ? new Date(latest_snapshot + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
 ---
 
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="generator" content={Astro.generator} />
-    <title>ERCOT Queue Detective</title>
-    <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        font-family: system-ui, -apple-system, sans-serif;
-        background: #0a0f1e;
-        color: #e2e8f0;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-      }
-      .badge {
-        font-size: 0.75rem;
-        font-weight: 600;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #38bdf8;
-        border: 1px solid #38bdf8;
-        border-radius: 999px;
-        padding: 0.25rem 0.75rem;
-        margin-bottom: 1.5rem;
-      }
-      h1 {
-        font-size: clamp(2rem, 6vw, 3.5rem);
-        font-weight: 800;
-        line-height: 1.1;
-        text-align: center;
-        background: linear-gradient(135deg, #e2e8f0 0%, #38bdf8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 1rem;
-      }
-      p {
-        font-size: 1.125rem;
-        color: #94a3b8;
-        text-align: center;
-        max-width: 480px;
-        line-height: 1.6;
-        margin-bottom: 2.5rem;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 1rem;
-        width: 100%;
-        max-width: 560px;
-        margin-bottom: 3rem;
-      }
-      .stat {
-        background: #111827;
-        border: 1px solid #1e293b;
-        border-radius: 0.75rem;
-        padding: 1.25rem;
-        text-align: center;
-      }
-      .stat-value {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: #38bdf8;
-      }
-      .stat-label {
-        font-size: 0.8rem;
-        color: #64748b;
-        margin-top: 0.25rem;
-      }
-      .source {
-        font-size: 0.75rem;
-        color: #334155;
-        text-align: center;
-      }
-      .source a { color: #475569; }
-    </style>
-  </head>
-  <body>
-    <div class="badge">Live dashboard — launching today</div>
-    <h1>ERCOT Queue Detective</h1>
-    <p>
-      Month-over-month tracking of every project in the ERCOT Generator
-      Interconnection Status queue. Who's advancing, who slipped, and what's
-      new this month.
-    </p>
-    <div class="grid">
-      <div class="stat">
-        <div class="stat-value">~30k</div>
-        <div class="stat-label">Queue rows tracked</div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ERCOT Queue Detective — Texas Generator Interconnection Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --border: #1e293b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --accent: #38bdf8;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --purple: #a78bfa;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
+
+    /* ---- Layout ---- */
+    .app { display: flex; flex-direction: column; height: 100vh; }
+    header { padding: 0.75rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+    header h1 { font-size: 1rem; font-weight: 700; background: linear-gradient(135deg, #e2e8f0, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .header-stats { display: flex; gap: 1.25rem; margin-left: auto; font-size: 0.78rem; color: var(--muted); }
+    .header-stats span b { color: var(--accent); font-weight: 600; }
+
+    nav.tabs { display: flex; gap: 0; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    nav.tabs button { padding: 0.6rem 1.25rem; font-size: 0.82rem; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s; }
+    nav.tabs button.active, nav.tabs button:hover { color: var(--text); border-bottom-color: var(--accent); }
+
+    .main { flex: 1; display: flex; min-height: 0; }
+
+    /* ---- Sidebar ---- */
+    .sidebar { width: 280px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+    .sidebar h3 { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+    .filter-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .filter-group select, .filter-group input[type=range], .filter-group input[type=text] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 0.375rem;
+      color: var(--text); padding: 0.4rem 0.6rem; font-size: 0.82rem; outline: none;
+    }
+    .filter-group select:focus, .filter-group input:focus { border-color: var(--accent); }
+    .toggle-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+    .toggle-row input[type=checkbox] { width: 1rem; height: 1rem; accent-color: var(--accent); }
+
+    .range-labels { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+
+    .btn-reset { width: 100%; padding: 0.5rem; font-size: 0.82rem; font-weight: 500; background: var(--border); color: var(--muted); border: 1px solid var(--border); border-radius: 0.375rem; cursor: pointer; }
+    .btn-reset:hover { background: #2d3748; color: var(--text); }
+
+    .result-count { font-size: 0.75rem; color: var(--muted); text-align: center; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+
+    /* ---- Map panel ---- */
+    .map-panel { flex: 1; position: relative; }
+    #map { position: absolute; inset: 0; }
+
+    /* Project popup */
+    .project-card {
+      position: absolute; bottom: 1rem; left: 1rem; right: 280px; max-width: 480px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem;
+      padding: 1rem; z-index: 10; animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .project-card h2 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.35rem; }
+    .project-card .meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.75rem; }
+    .project-card .meta b { color: var(--text); }
+    .card-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .pill { font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 999px; }
+    .pill-fuel-SOL { background: #1e3a1a; color: #34d399; }
+    .pill-fuel-WIN { background: #1a2e3a; color: #38bdf8; }
+    .pill-fuel-GAS { background: #3a2a1a; color: #fbbf24; }
+    .pill-fuel-OTH { background: #2a1a3a; color: #a78bfa; }
+    .pill-fuel-NUC { background: #3a1a1a; color: #f87171; }
+    .pill-fuel-default { background: #1e293b; color: #94a3b8; }
+    .pill-phase { background: #1e293b; color: #94a3b8; font-weight: 400; }
+    .pill-change { background: #14532d; color: #86efac; }
+    .card-row { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 0.25rem; }
+    .card-row .lbl { color: var(--muted); }
+    .card-row .val { font-weight: 500; }
+    .btn-detail { margin-top: 0.75rem; width: 100%; padding: 0.45rem; font-size: 0.8rem; font-weight: 600; background: var(--accent); color: #0a0f1e; border: none; border-radius: 0.375rem; cursor: pointer; }
+    .btn-detail:hover { background: #7dd3fc; }
+    .card-close { position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; }
+    .card-close:hover { color: var(--text); }
+
+    /* ---- Movers tab ---- */
+    .movers-panel { flex: 1; overflow-y: auto; padding: 1.5rem; }
+    .movers-panel h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .movers-panel .subtitle { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; }
+    .movers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+    .mover-card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.625rem; padding: 0.875rem; }
+    .mover-card:hover { border-color: #334155; }
+    .mover-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; }
+    .mover-name { font-size: 0.88rem; font-weight: 600; line-height: 1.3; }
+    .mover-mw { font-size: 1.1rem; font-weight: 700; color: var(--accent); white-space: nowrap; margin-left: 0.5rem; }
+    .mover-meta { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .change-badge { font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; display: inline-block; }
+    .badge-NEW { background: #14532d; color: #86efac; }
+    .badge-WITHDRAWN { background: #450a0a; color: #fca5a5; }
+    .badge-STATUS_ADVANCED { background: #1e3a5f; color: #7dd3fc; }
+    .badge-STATUS_REVERTED { background: #3a1a1a; color: #f87171; }
+    .badge-COD_SLIPPED { background: #3a2a1a; color: #fbbf24; }
+    .badge-COD_ADVANCED { background: #14532d; color: #86efac; }
+    .badge-CAPACITY_CHANGED { background: #2a1a3a; color: #c4b5fd; }
+    .badge-OWNERSHIP_CHANGED { background: #1a2a1a; color: #86efac; }
+    .mover-detail { font-size: 0.73rem; color: var(--muted); margin-top: 0.4rem; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mover-link { display: block; margin-top: 0.6rem; font-size: 0.75rem; color: var(--accent); text-decoration: none; }
+    .mover-link:hover { text-decoration: underline; }
+
+    .movers-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .movers-filters button { padding: 0.35rem 0.75rem; font-size: 0.78rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
+    .movers-filters button.active { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.08); }
+
+    /* ---- About tab ---- */
+    .about-panel { flex: 1; overflow-y: auto; padding: 2rem; max-width: 760px; margin: 0 auto; }
+    .about-panel h2 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .about-panel p { font-size: 0.9rem; color: #94a3b8; line-height: 1.7; margin-bottom: 1rem; }
+    .about-panel h3 { font-size: 1rem; font-weight: 700; margin: 1.5rem 0 0.5rem; }
+    .about-panel code { background: #1e293b; padding: 0.1em 0.4em; border-radius: 0.25rem; font-size: 0.85em; color: var(--accent); }
+    .about-panel pre { background: #1e293b; border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; overflow-x: auto; font-size: 0.82rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.6; }
+    .about-panel a { color: var(--accent); }
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin: 1.5rem 0; }
+    .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
+    .stat-box .v { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat-box .l { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; }
+
+    /* ---- Fuel colors for map ---- */
+    .legend { position: absolute; bottom: 2.5rem; right: 1rem; background: rgba(17,24,39,0.9); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem; z-index: 10; }
+    .legend h4 { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.5rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* hide panels */
+    .tab-panel { display: none; flex: 1; min-height: 0; }
+    .tab-panel.active { display: flex; }
+
+    @media (max-width: 640px) {
+      .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { flex-direction: column; }
+      .project-card { right: 0.5rem; left: 0.5rem; bottom: 0.5rem; max-width: 100%; }
+      .stat-row { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>⚡ ERCOT Queue Detective</h1>
+    <div class="header-stats">
+      <span><b id="stat-projects">{total_projects.toLocaleString()}</b> projects</span>
+      <span><b id="stat-mw">{Math.round(total_large_gen_mw / 1000)}k</b> GW queued</span>
+      <span>Updated <b>{latestLabel}</b></span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" data-tab="map-tab">Map</button>
+    <button data-tab="movers-tab">This Month's Movers</button>
+    <button data-tab="about-tab">About / API</button>
+  </nav>
+
+  <!-- MAP TAB -->
+  <div class="tab-panel active" id="map-tab">
+    <div class="sidebar">
+      <div>
+        <h3>Filters</h3>
+        <div class="filter-group">
+          <div class="toggle-row">
+            <input type="checkbox" id="changed-only" />
+            <label for="changed-only">Changed this month only</label>
+          </div>
+        </div>
       </div>
-      <div class="stat">
-        <div class="stat-value">2018</div>
-        <div class="stat-label">History back to</div>
+
+      <div class="filter-group">
+        <h3>Fuel Type</h3>
+        <select id="filter-fuel">
+          <option value="">All fuels</option>
+          <option value="SOL">Solar</option>
+          <option value="WIN">Wind</option>
+          <option value="GAS">Gas</option>
+          <option value="OTH">Other / BESS</option>
+          <option value="NUC">Nuclear</option>
+        </select>
       </div>
-      <div class="stat">
-        <div class="stat-value">Monthly</div>
-        <div class="stat-label">Refresh cadence</div>
+
+      <div class="filter-group">
+        <h3>CDR Zone</h3>
+        <select id="filter-zone">
+          <option value="">All zones</option>
+          <option value="HOUSTON">HOUSTON</option>
+          <option value="NORTH">NORTH</option>
+          <option value="SOUTH">SOUTH</option>
+          <option value="WEST">WEST</option>
+          <option value="PANHANDLE">PANHANDLE</option>
+          <option value="COASTAL">COASTAL</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <h3>Min Capacity (MW)</h3>
+        <input type="range" id="filter-mw" min="0" max="2000" step="50" value="0" />
+        <div class="range-labels"><span>0</span><span id="mw-label">0+ MW</span><span>2000+</span></div>
+      </div>
+
+      <div class="filter-group">
+        <h3>GIM Phase</h3>
+        <select id="filter-phase">
+          <option value="">All phases</option>
+          <option value="FIS Completed, IA">FIS Completed + IA</option>
+          <option value="FIS Completed, No IA">FIS Completed, No IA</option>
+          <option value="FIS Started">FIS Started</option>
+          <option value="FIS Not Started">FIS Not Started</option>
+        </select>
+      </div>
+
+      <button class="btn-reset" id="reset-filters">Reset filters</button>
+      <div class="result-count" id="result-count">Loading…</div>
+    </div>
+
+    <div class="map-panel">
+      <div id="map"></div>
+      <div class="legend">
+        <h4>Fuel</h4>
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Solar</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div> Wind</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div> Gas</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div> BESS/Other</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Nuclear</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#94a3b8"></div> Other</div>
+      </div>
+      <div id="project-card" style="display:none" class="project-card">
+        <button class="card-close" id="card-close">✕</button>
+        <h2 id="card-name"></h2>
+        <div class="meta" id="card-meta"></div>
+        <div class="card-pills" id="card-pills"></div>
+        <div class="card-row"><span class="lbl">County</span><span class="val" id="card-county"></span></div>
+        <div class="card-row"><span class="lbl">CDR Zone</span><span class="val" id="card-zone"></span></div>
+        <div class="card-row"><span class="lbl">Projected COD</span><span class="val" id="card-cod"></span></div>
+        <div class="card-row"><span class="lbl">Entity</span><span class="val" id="card-entity" style="font-size:0.72rem"></span></div>
+        <button class="btn-detail" id="card-detail-btn">View full project timeline →</button>
       </div>
     </div>
-    <p class="source">
-      Data: <a href="https://www.ercot.com/gridinfo/resource" target="_blank">ERCOT GIS Report</a>
-      &nbsp;·&nbsp; Public domain &nbsp;·&nbsp; Not affiliated with ERCOT
-    </p>
-  </body>
+  </div>
+
+  <!-- MOVERS TAB -->
+  <div class="tab-panel" id="movers-tab">
+    <div class="movers-panel">
+      <h2>This Month's Movers</h2>
+      <p class="subtitle" id="movers-subtitle">Loading…</p>
+      <div class="movers-filters" id="movers-type-filters">
+        <button class="active" data-ct="">All changes</button>
+        <button data-ct="NEW">New</button>
+        <button data-ct="WITHDRAWN">Withdrawn</button>
+        <button data-ct="STATUS_ADVANCED">Advanced</button>
+        <button data-ct="COD_SLIPPED">COD Slipped</button>
+        <button data-ct="COD_ADVANCED">COD Advanced</button>
+        <button data-ct="CAPACITY_CHANGED">MW Changed</button>
+      </div>
+      <div class="movers-grid" id="movers-grid">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ABOUT TAB -->
+  <div class="tab-panel" id="about-tab">
+    <div class="about-panel">
+      <h2>ERCOT Queue Detective</h2>
+      <p>
+        Every month, ERCOT publishes the Generator Interconnection Status (GIS) report — a spreadsheet
+        listing every proposed power plant in Texas that has requested a grid connection study.
+        This tool tracks that queue month-over-month and surfaces what changed: new entrants,
+        projects that advanced through studies, capacity revisions, COD slips, and withdrawals.
+      </p>
+      <p>
+        The queue is the leading indicator of Texas grid buildout — 6-18 months ahead of permits
+        and construction. Right now there are <strong>{total_large_gen_mw && Math.round(total_large_gen_mw / 1000)}+ GW</strong> of proposed generation
+        in queue, dominated by solar, BESS, and gas.
+      </p>
+
+      <div class="stat-row">
+        <div class="stat-box"><div class="v">{total_projects.toLocaleString()}</div><div class="l">Projects tracked</div></div>
+        <div class="stat-box"><div class="v">{Math.round((total_large_gen_mw || 0) / 1000)}k GW</div><div class="l">Total queued capacity</div></div>
+        <div class="stat-box"><div class="v">31</div><div class="l">Monthly snapshots</div></div>
+        <div class="stat-box"><div class="v">Monthly</div><div class="l">Refresh cadence</div></div>
+      </div>
+
+      <h3>Data source</h3>
+      <p>
+        Raw data: <a href="https://www.ercot.com/gridinfo/resource" target="_blank">ERCOT GIS Report</a>.
+        Downloaded monthly, parsed from Excel, stored in SQLite. Not affiliated with or endorsed by ERCOT.
+        Source: public ERCOT data, used under ERCOT's open data policy.
+      </p>
+
+      <h3>JSON API</h3>
+      <p>All endpoints return JSON and are freely usable for non-commercial purposes.</p>
+      <pre set:html={`GET /api/summary\nGET /api/projects?fuel=SOL&min_mw=100&changed_since=2026-06-01\nGET /api/projects/{'{'}inr{'}'}\nGET /api/movers?change_type=NEW\nGET /api/filters`}></pre>
+
+      <h3>Example: biggest new projects this month</h3>
+      <pre set:html={"curl /api/movers?change_type=NEW | jq '.movers[] | {name: .project_name, mw: .capacity_mw}'"}></pre>
+
+      <h3>Example: all COD slips above 500 MW</h3>
+      <pre>curl "/api/projects?change_type=COD_SLIPPED&amp;min_mw=500&amp;changed_since=2026-06-01"</pre>
+
+      <h3>Built at</h3>
+      <p>Candid Intelligence Hackathon, Houston, August 2026. Stack: Python + SQLite + FastAPI + Astro + MapLibre GL JS.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // maplibregl is loaded as a global from the CDN <script> tag above
+
+  // ---- Tab switching ----
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const panels = document.querySelectorAll('.tab-panel');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'movers-tab') renderMovers();
+    });
+  });
+
+  // ---- Fuel color map ----
+  const FUEL_COLORS = {
+    SOL: '#f59e0b',
+    WIN: '#38bdf8',
+    GAS: '#f97316',
+    OTH: '#a78bfa',
+    NUC: '#f87171',
+    WAT: '#34d399',
+    OIL: '#fb923c',
+    COA: '#6b7280',
+  };
+  function fuelColor(fuel) { return FUEL_COLORS[fuel] || '#94a3b8'; }
+
+  function fuelPillClass(fuel) {
+    const map = { SOL: 'pill-fuel-SOL', WIN: 'pill-fuel-WIN', GAS: 'pill-fuel-GAS', OTH: 'pill-fuel-OTH', NUC: 'pill-fuel-NUC' };
+    return map[fuel] || 'pill-fuel-default';
+  }
+
+  // ---- Load data ----
+  let allProjects = [];
+  let moversData = null;
+  let changedINRs = new Set();
+
+  async function loadData() {
+    const [projRes, moversRes] = await Promise.all([
+      fetch('/api/projects.json'),
+      fetch('/api/movers.json'),
+    ]);
+    const projData = await projRes.json();
+    moversData = await moversRes.json();
+    allProjects = projData.projects || [];
+    changedINRs = new Set((moversData.movers || []).map(m => m.inr));
+    initMap();
+    updateResultCount(allProjects.length);
+  }
+
+  // ---- Map ----
+  let map;
+  let selectedINR = null;
+
+  function initMap() {
+    map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          'osm': {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+          }
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.25 } }]
+      },
+      center: [-99.5, 31.5],
+      zoom: 5.2,
+      minZoom: 4,
+      maxZoom: 14,
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.on('load', () => {
+      addProjectsLayer(allProjects);
+    });
+  }
+
+  function buildGeoJSON(projects) {
+    return {
+      type: 'FeatureCollection',
+      features: projects
+        .filter(p => p.lat && p.lon)
+        .map(p => ({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+          properties: {
+            inr: p.inr,
+            name: p.project_name || p.inr,
+            fuel: p.fuel || 'OTH',
+            mw: p.capacity_mw || 0,
+            county: p.county || '',
+            zone: p.cdr_zone || '',
+            cod: p.projected_cod || '',
+            entity: p.interconnecting_entity || '',
+            phase: p.gim_study_phase || '',
+            changed: changedINRs.has(p.inr) ? 1 : 0,
+            color: fuelColor(p.fuel),
+          }
+        }))
+    };
+  }
+
+  function addProjectsLayer(projects) {
+    const geojson = buildGeoJSON(projects);
+
+    if (map.getSource('projects')) {
+      map.getSource('projects').setData(geojson);
+      return;
+    }
+
+    map.addSource('projects', { type: 'geojson', data: geojson, cluster: true, clusterMaxZoom: 7, clusterRadius: 40 });
+
+    // Clusters
+    map.addLayer({
+      id: 'clusters',
+      type: 'circle',
+      source: 'projects',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#38bdf8',
+        'circle-radius': ['step', ['get', 'point_count'], 16, 10, 22, 50, 28],
+        'circle-opacity': 0.7,
+      }
+    });
+    map.addLayer({
+      id: 'cluster-count',
+      type: 'symbol',
+      source: 'projects',
+      filter: ['has', 'point_count'],
+      layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 11, 'text-font': ['Open Sans Regular'] },
+      paint: { 'text-color': '#0a0f1e' }
+    });
+
+    // Individual points — size by MW, color by fuel
+    map.addLayer({
+      id: 'projects-points',
+      type: 'circle',
+      source: 'projects',
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['get', 'mw'],
+          0, 4, 100, 6, 500, 9, 1000, 13, 2000, 18
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': ['case', ['==', ['get', 'changed'], 1], 1.0, 0.6],
+        'circle-stroke-width': ['case', ['==', ['get', 'changed'], 1], 2, 0],
+        'circle-stroke-color': '#ffffff',
+      }
+    });
+
+    // Click handlers
+    map.on('click', 'clusters', (e) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+      const clusterId = features[0].properties.cluster_id;
+      map.getSource('projects').getClusterExpansionZoom(clusterId).then(zoom => {
+        map.easeTo({ center: features[0].geometry.coordinates, zoom });
+      });
+    });
+
+    map.on('click', 'projects-points', (e) => {
+      const props = e.features[0].properties;
+      showProjectCard(props);
+    });
+
+    map.on('mouseenter', 'projects-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'projects-points', () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; });
+  }
+
+  function showProjectCard(props) {
+    selectedINR = props.inr;
+    document.getElementById('card-name').textContent = props.name;
+    document.getElementById('card-meta').innerHTML = `<b>${(props.mw || 0).toFixed(1)} MW</b> · ${props.fuel || ''}`;
+    document.getElementById('card-county').textContent = props.county || '—';
+    document.getElementById('card-zone').textContent = props.zone || '—';
+    document.getElementById('card-cod').textContent = props.cod ? props.cod.slice(0, 10) : '—';
+    document.getElementById('card-entity').textContent = props.entity || '—';
+
+    const pills = document.getElementById('card-pills');
+    pills.innerHTML = '';
+    const fuelPill = document.createElement('span');
+    fuelPill.className = `pill ${fuelPillClass(props.fuel)}`;
+    fuelPill.textContent = props.fuel || 'N/A';
+    pills.appendChild(fuelPill);
+    if (props.phase) {
+      const phasePill = document.createElement('span');
+      phasePill.className = 'pill pill-phase';
+      phasePill.textContent = props.phase;
+      pills.appendChild(phasePill);
+    }
+    if (props.changed) {
+      const changePill = document.createElement('span');
+      changePill.className = 'pill pill-change';
+      changePill.textContent = 'Changed this month';
+      pills.appendChild(changePill);
+    }
+
+    document.getElementById('card-detail-btn').onclick = () => {
+      window.location.href = `/project/${props.inr}`;
+    };
+
+    document.getElementById('project-card').style.display = 'block';
+  }
+
+  document.getElementById('card-close').addEventListener('click', () => {
+    document.getElementById('project-card').style.display = 'none';
+  });
+
+  // ---- Filters ----
+  function getFilteredProjects() {
+    const fuel = document.getElementById('filter-fuel').value;
+    const zone = document.getElementById('filter-zone').value;
+    const minMW = parseInt(document.getElementById('filter-mw').value) || 0;
+    const phase = document.getElementById('filter-phase').value;
+    const changedOnly = document.getElementById('changed-only').checked;
+
+    return allProjects.filter(p => {
+      if (fuel && p.fuel !== fuel) return false;
+      if (zone && p.cdr_zone !== zone) return false;
+      if (minMW > 0 && (p.capacity_mw || 0) < minMW) return false;
+      if (phase && !(p.gim_study_phase || '').includes(phase)) return false;
+      if (changedOnly && !changedINRs.has(p.inr)) return false;
+      return true;
+    });
+  }
+
+  function updateResultCount(n) {
+    document.getElementById('result-count').textContent = `${n.toLocaleString()} projects shown`;
+  }
+
+  function applyFilters() {
+    const filtered = getFilteredProjects();
+    updateResultCount(filtered.length);
+    if (map && map.getSource('projects')) {
+      addProjectsLayer(filtered);
+    }
+  }
+
+  document.getElementById('filter-fuel').addEventListener('change', applyFilters);
+  document.getElementById('filter-zone').addEventListener('change', applyFilters);
+  document.getElementById('filter-phase').addEventListener('change', applyFilters);
+  document.getElementById('changed-only').addEventListener('change', applyFilters);
+  document.getElementById('filter-mw').addEventListener('input', (e) => {
+    const v = parseInt(e.target.value);
+    document.getElementById('mw-label').textContent = v === 0 ? '0+ MW' : `${v}+ MW`;
+    applyFilters();
+  });
+  document.getElementById('reset-filters').addEventListener('click', () => {
+    document.getElementById('filter-fuel').value = '';
+    document.getElementById('filter-zone').value = '';
+    document.getElementById('filter-mw').value = '0';
+    document.getElementById('mw-label').textContent = '0+ MW';
+    document.getElementById('filter-phase').value = '';
+    document.getElementById('changed-only').checked = false;
+    applyFilters();
+  });
+
+  // ---- Movers ----
+  let moversFilter = '';
+
+  function renderMovers() {
+    if (!moversData) return;
+    const { from_snapshot, to_snapshot, movers } = moversData;
+
+    const fromLabel = from_snapshot ? new Date(from_snapshot + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    const toLabel = to_snapshot ? new Date(to_snapshot + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    document.getElementById('movers-subtitle').textContent = `Changes from ${fromLabel} → ${toLabel}`;
+
+    const filtered = moversFilter ? movers.filter(m => m.change_type === moversFilter) : movers;
+
+    const grid = document.getElementById('movers-grid');
+    if (filtered.length === 0) {
+      grid.innerHTML = '<p style="color:var(--muted)">No movers match this filter.</p>';
+      return;
+    }
+    grid.innerHTML = filtered.map(m => `
+      <div class="mover-card">
+        <div class="mover-header">
+          <div class="mover-name">${escHtml(m.project_name || m.inr)}</div>
+          <div class="mover-mw">${m.capacity_mw ? m.capacity_mw.toFixed(0) + ' MW' : '—'}</div>
+        </div>
+        <div class="mover-meta">${escHtml(m.county || '')} · ${escHtml(m.fuel_label || m.fuel || '')}</div>
+        <span class="change-badge badge-${m.change_type}">${changeLabel(m.change_type)}</span>
+        <div class="mover-detail">${escHtml(m.detail || '')}</div>
+        <a class="mover-link" href="/project/${m.inr}">View timeline →</a>
+      </div>
+    `).join('');
+  }
+
+  function changeLabel(ct) {
+    const labels = {
+      NEW: 'New', WITHDRAWN: 'Withdrawn', STATUS_ADVANCED: 'Advanced',
+      STATUS_REVERTED: 'Reverted', COD_SLIPPED: 'COD Slipped',
+      COD_ADVANCED: 'COD Advanced', CAPACITY_CHANGED: 'MW Changed', OWNERSHIP_CHANGED: 'New Owner',
+    };
+    return labels[ct] || ct;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.getElementById('movers-type-filters').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    document.querySelectorAll('#movers-type-filters button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    moversFilter = btn.dataset.ct;
+    renderMovers();
+  });
+
+  // ---- Boot ----
+  loadData();
+</script>
+</body>
 </html>

@@ -2,3 +2,9 @@ BUILD_BRIEF.md
 CONTEXT.md
 .venv/
 data/raw/
+__pycache__/
+*.pyc
+web/node_modules/
+web/dist/
+*.db-shm
+*.db-wal

@@ -1,0 +1,56 @@
+name: Monthly GIS refresh
+
+on:
+  schedule:
+    # Run on the 7th of each month — ERCOT usually publishes 3-5 days after month end
+    - cron: '0 14 7 * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install Python dependencies
+        run: uv pip install --system -r pyproject.toml
+
+      - name: Download latest GIS report
+        run: python download_gis.py
+
+      - name: Run ETL
+        run: python etl.py
+
+      - name: Export static JSON
+        run: |
+          python -m uvicorn api:app --port 8000 &
+          sleep 3
+          curl -s "http://localhost:8000/api/projects?limit=5000" > web/public/api/projects.json
+          curl -s "http://localhost:8000/api/summary" > web/public/api/summary.json
+          curl -s "http://localhost:8000/api/movers?limit=200" > web/public/api/movers.json
+          curl -s "http://localhost:8000/api/filters" > web/public/api/filters.json
+          pkill -f uvicorn || true
+
+      - name: Build static site
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Commit and push updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/db/ web/public/api/ web/dist/
+          git diff --staged --quiet || git commit -m "chore: monthly GIS refresh $(date +%Y-%m)"
+          git push
